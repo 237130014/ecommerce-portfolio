@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 登录态与数据（个人配置，不提交）
+.browser_profile/
+xhs-baseline/
+*.csv
+*.xlsx
+data/
+output/
+logs/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 关键词配置模板（覆盖根 .gitignore 的 *.json 规则，需提交）
+!references/keywords.json
