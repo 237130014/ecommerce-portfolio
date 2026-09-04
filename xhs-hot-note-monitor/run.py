@@ -48,6 +48,16 @@ def main():
     gen_dashboard(DATA_DIR)
     print("[run] 全部完成")
 
+    # 自动用默认浏览器打开看板（非技术同事跑完直接看到结果）
+    try:
+        import webbrowser
+        latest = sorted(DATA_DIR.glob("小红书热门笔记-*.html"))
+        if latest:
+            webbrowser.open(latest[-1].resolve().as_uri())
+            print(f"[run] 已自动打开看板：{latest[-1].name}")
+    except Exception:
+        pass
+
 
 if __name__ == "__main__":
     main()

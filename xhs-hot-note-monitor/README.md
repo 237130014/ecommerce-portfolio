@@ -1,62 +1,87 @@
-# 小红书热门笔记抓取（xhs-hot-note-monitor）
+# 小红书热门笔记抓取工具
 
-通过指定关键词搜索小红书笔记，筛选「近 7 天 + 最多点赞」的热门笔记，抓取标题 / 正文 / 封面图 / 链接，汇总成 CSV 表格，并生成瀑布流 Web 看板。
+一句话说明：输入几个关键词，自动抓出小红书「近 7 天 + 最多点赞」的热门笔记，生成一个网页看板 + 一张表格（含标题、封面图、链接、点赞数）。
 
-## 功能
+**不需要懂技术**，按下面三步走就能用。
 
-- **关键词搜索**：支持多关键词批量抓取
-- **精准筛选**：排序「最多点赞」+ 发布时间「一周内」
-- **字段抓取**：标题、正文摘要、封面图、链接、点赞、收藏、评论、作者、发布时间
-- **封面图下载**：浏览器原生抓图（goto https 图片 URL + 元素截图，绕开 CDN http 代理超时）
-- **汇总表格**：`热门笔记明细.csv`
-- **Web 看板**：瀑布流卡片 + 关键词筛选 + 标题搜索 + 点击放大 + 下载 CSV
+---
 
-## 环境
+## 三步开始
+
+### 第 1 步：装一次 Python（只需装一次）
+
+1. 打开官网下载：https://www.python.org/downloads/
+2. 双击下载好的安装包
+3. ⚠️ **安装时务必勾选底部 `Add Python to PATH`**，再点 Install
+4. 装完就关掉，不用管它
+
+> 如果电脑里已经装过 Python，这一步可跳过。
+
+### 第 2 步：双击 `setup.bat` 装环境（只需装一次）
+
+双击项目文件夹里的 **`setup.bat`**，等它自己跑完（会下载浏览器内核，约 100MB，耐心等几分钟）。看到 `Setup done!` 就是装好了。
+
+### 第 3 步：双击 `run.bat` 开始抓取
+
+双击 **`run.bat`**：
+
+- **第一次用**：会自动弹出一个浏览器窗口和二维码 → 用**小红书 App 扫一扫**登录 → 登录后自动开始抓取
+- **以后再用**：自动复用登录，直接抓取
+
+抓取完成后，会自动在浏览器里打开看板网页，也能在 `xhs-baseline` 文件夹里找到结果。
+
+---
+
+## 怎么改「抓什么关键词」
+
+打开 `references` 文件夹里的 **`keywords.json`** 文件（用记事本就能打开），照着改：
+
+```json
+{
+  "keywords": [
+    "黄金项链",
+    "银饰耳环",
+    "珍珠手链"
+  ]
+}
+```
+
+把里面的词换成你想抓的词，**保存**，再双击 `run.bat` 即可。想抓几个词就写几个，用逗号隔开。
+
+---
+
+## 结果在哪看
+
+抓取完成后，`xhs-baseline` 文件夹里会有：
+
+| 文件 | 说明 |
+|------|------|
+| `小红书热门笔记-日期.html` | 网页看板（双击用浏览器打开，可筛选、搜索、点开看大图）|
+| `热门笔记明细.csv` | 表格（双击用 Excel/WPS 打开）|
+| `images/` | 所有笔记的封面图 |
+
+---
+
+## 常见问题
+
+- **双击 `run.bat` 闪退 / 报错**：先确认第 1 步装 Python 时勾了 `Add Python to PATH`，再重新双击 `setup.bat`。
+- **二维码扫了没反应**：等 2 秒，二维码会自动刷新，扫最新的那个；确认用手机小红书 App 扫。
+- **想换成无窗口静默跑**：装好登录过一次后，可改双击 `run.bat` 前的命令行加 `--headless`（进阶用法，不影响普通使用）。
+
+---
+
+## 给技术同事（可选）
 
 ```bash
-python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt
-.venv/Scripts/python -m playwright install chromium
+python run.py                      # 用 keywords.json 里的关键词
+python run.py 黄金项链 银饰耳环    # 命令行指定关键词
+python run.py --headless 黄金项链  # 无头模式
 ```
 
-## 使用
+---
 
-```bash
-# 配置关键词（references/keywords.json）
-# 一键执行（首次会弹窗扫码登录，登录态自动保存复用）
-python run.py
+## 注意
 
-# 或命令行指定关键词
-python run.py 黄金项链 银饰耳环
-
-# 已登录后可用无头模式（不弹窗、无打扰）
-python run.py --headless 黄金项链
-
-# 分步执行
-python scripts/login.py                              # 只扫码登录
-python scripts/search.py 黄金项链                    # 只搜索
-python scripts/fix_images.py                         # 只下载图片
-python scripts/gen_dashboard.py                      # 只生成看板
-```
-
-## 目录结构
-
-```
-xhs-hot-note-monitor/
-├── run.py                  # 一键执行入口
-├── references/
-│   └── keywords.json       # 关键词清单
-├── scripts/
-│   ├── login.py            # 扫码登录 + Cookie 持久化
-│   ├── search.py           # 搜索 + 筛选 + 提取
-│   ├── fix_images.py       # 封面图下载
-│   └── gen_dashboard.py    # CSV + 看板
-└── xhs-baseline/           # 数据目录（图片 / JSON / CSV / 看板）
-```
-
-## 注意事项
-
-- 登录态存于 `.browser_profile/`，请勿提交或分享（含 Cookie）
-- 小红书封面图签名 URL 时效短，搜索后应尽快下载
-- 保持手动低频触发、串行抓取，避免触发风控
-- 仅供个人学习研究，遵守平台使用条款
+- 登录态存在本地 `.browser_profile/` 文件夹，**不要分享给别人**（含你的登录 Cookie）。
+- 保持手动、低频、串行抓取，避免触发平台风控。
+- 仅供个人学习研究，遵守平台使用条款。
