@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#f7f7f8; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  .card { width:750px; margin:0 auto; background:#fff; padding:48px 52px 56px; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .logo { width:44px; height:44px; border-radius:12px; background:#ff2442; color:#fff;
+          display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; }
+  .title { font-size:34px; font-weight:700; color:#1f1f1f; }
+  .subtitle { font-size:17px; color:#8a8a8a; margin-top:6px; }
+  .divider { height:1px; background:#ececec; margin:34px 0; }
+  .step { display:flex; gap:22px; align-items:flex-start; margin-bottom:34px; }
+  .num { width:52px; height:52px; border-radius:50%; background:#ff2442; color:#fff;
+         font-size:26px; font-weight:700; display:flex; align-items:center; justify-content:center;
+         flex-shrink:0; margin-top:2px; }
+  .step-title { font-size:24px; font-weight:700; color:#1f1f1f; }
+  .step-desc { font-size:18px; color:#555; line-height:1.6; margin-top:8px; }
+  .hl { color:#ff2442; font-weight:700; }
+  .code { display:inline-block; background:#fff0f2; color:#d81e39; font-size:17px;
+          padding:3px 12px; border-radius:8px; font-weight:600; margin:0 4px; }
+  .tip { background:#f7f7f8; border-radius:14px; padding:20px 24px; margin-top:6px; }
+  .tip-title { font-size:18px; font-weight:700; color:#1f1f1f; margin-bottom:10px; }
+  .tip-row { font-size:17px; color:#555; line-height:1.8; }
+  .footer { font-size:14px; color:#b0b0b0; margin-top:36px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">
+    <div class="logo">红</div>
+    <div>
+      <div class="title">小红书热门笔记抓取工具</div>
+      <div class="subtitle">3 步上手 · 无需懂技术</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div>
+      <div class="step-title">装一次 Python</div>
+      <div class="step-desc">打开 <span class="hl">python.org/downloads</span> 下载安装，安装时<span class="hl">务必勾选 Add Python to PATH</span>。</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div>
+      <div class="step-title">双击 <span class="code">setup.bat</span></div>
+      <div class="step-desc">自动安装依赖 + 浏览器内核（约 100MB，耐心等几分钟），看到 <span class="hl">Setup done!</span> 即可。</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div>
+      <div class="step-title">双击 <span class="code">run.bat</span></div>
+      <div class="step-desc">首次会弹二维码，用<span class="hl">小红书 App 扫码登录</span>，之后自动复用。抓完自动打开看板网页。</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="tip">
+    <div class="tip-title">小贴士</div>
+    <div class="tip-row">· 抓什么关键词：编辑 <span class="code">references/keywords.json</span> 里的词，保存后重新双击 run.bat</div>
+    <div class="tip-row">· 结果在哪看：<span class="code">xhs-baseline</span> 文件夹（网页看板 + 表格 + 封面图）</div>
+  </div>
+
+  <div class="footer">仅供个人学习研究 · 遵守平台使用条款</div>
+</div>
+</body>
+</html>
