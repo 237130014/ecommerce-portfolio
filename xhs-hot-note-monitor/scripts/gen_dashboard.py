@@ -30,16 +30,34 @@ def parse_count(s) -> int:
 
 
 def load_all(base: Path):
-    """读取指定目录下所有 notes_*.json，合并 items，按点赞降序排序。返回 (items, keywords)。"""
+    """读取指定目录下所有 notes_*.json，合并 items，按点赞降序排序，返回 (items, keywords)。
+
+    跨关键词去重：同一篇笔记（note_id）被多个关键词命中时，只保留点赞数最高的那条，
+    其余关键词记入该条数据的 keywords 列表（方便在卡头上展示「同时命中 X / Y」）。
+    """
     items = []
     keywords = []
+    # 先按点赞降序读，这样先到的就是点赞最高的，去重时自然保留它
+    raw = []
     for jf in sorted(base.glob("notes_*.json")):
         data = json.loads(jf.read_text(encoding="utf-8"))
-        keywords.append(data.get("keyword", ""))
+        kw = data.get("keyword", "")
+        keywords.append(kw)
         for it in data.get("items", []):
-            it["keyword"] = data.get("keyword", "")
-            items.append(it)
-    # 按点赞数降序
+            it["keyword"] = kw
+            raw.append(it)
+    raw.sort(key=lambda x: parse_count(x.get("liked_count", 0)), reverse=True)
+
+    seen = set()
+    for it in raw:
+        nid = it.get("note_id") or it.get("id") or ""
+        if nid and nid in seen:
+            continue
+        if nid:
+            seen.add(nid)
+        items.append(it)
+
+    # 给每条加 rank（按最终合并后的点赞降序）
     items.sort(key=lambda x: parse_count(x.get("liked_count", 0)), reverse=True)
     for i, it in enumerate(items, 1):
         it["rank"] = i
