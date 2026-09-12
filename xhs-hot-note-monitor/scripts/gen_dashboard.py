@@ -1,5 +1,5 @@
 """
-看板生成模块：合并多关键词数据 → 汇总 CSV + 瀑布流 HTML 看板
+看板生成模块：读取指定目录下的 notes_*.json，合并为汇总 CSV + 瀑布流 HTML 看板。
 
 用法：
     python scripts/gen_dashboard.py [数据目录]
@@ -30,7 +30,7 @@ def parse_count(s) -> int:
 
 
 def load_all(base: Path):
-    """读取所有 notes_*.json，合并 items，按点赞降序排序。返回 (items, keywords)。"""
+    """读取指定目录下所有 notes_*.json，合并 items，按点赞降序排序。返回 (items, keywords)。"""
     items = []
     keywords = []
     for jf in sorted(base.glob("notes_*.json")):
@@ -235,9 +235,9 @@ def gen_dashboard(base: Path):
     # CSV
     write_csv(items, base)
 
-    # HTML 看板
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    out = base / f"小红书热门笔记-{date_str}.html"
+    # HTML 看板（文件名带时间，避免同一目录内重名）
+    now = datetime.now()
+    out = base / f"小红书热门笔记-{now.strftime('%Y-%m-%d_%H%M')}.html"
     # 只注入看板需要的字段
     slim = [{
         "keyword": it.get("keyword", ""),
@@ -255,7 +255,7 @@ def gen_dashboard(base: Path):
     } for it in items]
     html = (HTML_TEMPLATE
             .replace("__DATA__", json.dumps(slim, ensure_ascii=False))
-            .replace("__DATE__", datetime.now().strftime("%Y-%m-%d %H:%M")))
+            .replace("__DATE__", now.strftime("%Y-%m-%d %H:%M")))
     out.write_text(html, encoding="utf-8")
     print(f"[dash] 看板已生成：{out}")
     return out
