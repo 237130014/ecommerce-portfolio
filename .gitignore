@@ -25,6 +25,8 @@ yarn-error.log*
 *.json
 !package.json
 !tsconfig.json
+# 配置模板需要随仓库发布；真实的 stores.json 仍被上面的 *.json 排除，由使用者各填自己的店铺
+!competitor-new-product-monitor/references/stores.example.json
 data/
 output/
 logs/
