@@ -2,7 +2,7 @@
   "_说明": "【使用前必须自己提供店铺 URL】本文件只是格式模板，不包含任何真实店铺。请复制为同目录下的 stores.json，然后把下面 stores 数组里的占位内容替换成你自己的店铺；未替换就跑脚本会直接报错。",
   "_字段说明": "no=店铺序号（决定数据文件名 jd_new_{no}_{name}.json，不要重复）；platform=jd 或 tmall；name=店铺名（自定义，仅用于展示与文件名）；url=店铺的「商品列表页」URL。",
   "_京东URL格式": "https://<店铺域名>.jd.com/view_search-<venderId>-<类目Id>-<店铺Id>-0-0-0-0-1-1-60.html   （URL 必须含 view_search）",
-  "_天猫URL格式": "https://<店铺>.tmall.com/category.htm?catId=<类目Id>   （店铺全部商品分类页）",
+  "_天猫URL格式": "https://<店铺>.tmall.com/view_shop.htm?search=y&orderType=newOn_desc   （店内搜索页；category.htm / search.htm 常常只渲染店铺外壳、抓不到商品，脚本会自动帮你转成 view_shop 形式）",
   "_怎么获取": "浏览器打开店铺 → 点「所有商品」/「全部商品」或任一分类 → 复制地址栏 URL。注意：店铺首页没有商品卡片，填首页会抓不到东西。详见 SKILL.md 的「怎么拿商品列表页 URL」。",
   "stores": [
     {

@@ -33,7 +33,9 @@ description: 竞品新品监控与瀑布流看板生成。当用户提到"竞品
 - **京东**：打开店铺 → 点左侧「所有商品」或任一分类 → 复制地址栏，形如
   `https://<店铺域名>.jd.com/view_search-<venderId>-<类目Id>-<店铺Id>-0-0-0-0-1-1-60.html`
   （URL 里必须含 `view_search`，脚本会自动把排序切成「新品」）
-- **天猫**：打开店铺 → 点「全部商品」或某分类 → 复制地址栏
+- **天猫**：打开店铺 → 点「全部商品」/店内搜索 → 复制地址栏。**推荐形态**
+  `https://<店铺>.tmall.com/view_shop.htm?search=y&orderType=newOn_desc`
+  （`category.htm` / `search.htm` 常常只渲染店铺外壳、抓 0 条；脚本会自动转成 view_shop 形式，但你直接拿对更稳）
 
 把 URL 里的排序参数保持原样即可，脚本会自动改成新品排序。填了首页 URL 脚本会**明确报错并跳过**，不会静默抓 0 条。
 
@@ -46,7 +48,7 @@ description: 竞品新品监控与瀑布流看板生成。当用户提到"竞品
 - `BASE/prev/`：上一轮数据备份（本轮对比基准）
 - `BASE/history/{日期}/`：历史归档，保留多轮轨迹
 - `BASE/变动数据.json`：变动结果，供看板打角标
-- 交付物：`BASE/京东竞品新品瀑布流看板-{日期}.html`、`BASE/新品全量明细.csv`、`BASE/变动对比-{日期}.md`
+- 交付物：`BASE/竞品新品瀑布流看板-{日期}.html`（只有京东店铺时命名为 `京东竞品新品瀑布流看板-{日期}.html`，含天猫等多平台时去掉平台前缀）、`BASE/新品全量明细.csv`、`BASE/变动对比-{日期}.md`
 
 ## 工作流
 
@@ -96,6 +98,7 @@ python {skill_dir}/scripts/compare_new.py {BASE}
 - **URL 归一化匹配**：按平台稳定商品 ID 比对，商品换活动链接不会被误判成「下架 + 新增」
 - **阈值过滤**：`--min-pct`（默认 1%）过滤一分钱级别的噪音
 - **可选基准**：`--against 2026-09-10` 对比指定历史日期
+- **首轮自动建档**：没有 `prev/` 时不会报错跳过，而是自动把本轮数据复制到 `prev/` 作为下一轮基线（不需要手动搬文件）
 - 输出：`变动对比-{日期}.md`、`变动数据.json`，并归档到 `history/{日期}/`
 
 ### Step 5 瀑布流看板
@@ -104,7 +107,9 @@ python {skill_dir}/scripts/compare_new.py {BASE}
 python {skill_dir}/scripts/gen_dashboard.py {BASE}
 ```
 
-- 瀑布流卡片 + 店铺筛选 chips + 关键词搜索 + 价格排序 + 点击放大（lightbox）+ 下载 CSV
+- 瀑布流卡片 + 品牌导航 chips + 关键词搜索 + 价格排序 + 点击放大（lightbox）+ 下载 CSV
+- **品牌导航：全部预览 + 单品牌查看**——默认「全部预览」，点某个品牌只呈现该品牌商品；
+  再点一次同一品牌、或点「× 返回全部预览」回到全部。与搜索/排序/只看变动叠加生效
 - **变动角标**：新上架 / 涨 x% / 降 x%
 - **「只看变动」筛选**：一键过滤出本轮有变化的商品
 
@@ -135,19 +140,28 @@ python {skill_dir}/scripts/gen_dashboard.py {BASE}
    - 首屏只有 4 条左右有价格，其余 `.jdNum` 内容是 `&nbsp;`；必须滚动后才异步填充
    - 图片首屏是 `class="J_imgLazyload"` 的 gif 占位图，真实地址在 **`original` 属性**里（其次才是 `src`）
    - 做法：逐步滚动整页（每步约 `0.75 × 视口高`、停 650ms）→ 轮询「出价数/出图数」达标再提取。实测可达 70/70 全覆盖
+   - 实测 2026-09-18：`mall.jd.com/view_search-...` 域名可直接用（不必换成 `ctf.jd.com`）；`preprice` 属性服务端直出，不依赖滚动
 9. **价格绝不能取 `jdprice` 属性**：那是 SKU 编号。价格取 `.jdNum` 文本，兜底 `preprice` 属性。曾因回退到 `jdprice` 导致「价格」字段被写成商品 ID
 10. **评价数抓不到**：`.jCommentNum` 由 `club.jd.com/comment/productCommentSummaries.action` 异步填充，页面上始终为空；直接 fetch 该接口返回「系统繁忙」（京东校验来源）。现已如实留空，不编造
 11. **标题取 `.jDesc a`**，链接取 `.jPic a[href*="item.jd.com"]`（协议相对 URL `//item.jd.com/xxx.html`，需转绝对地址并剥掉 query/hash）
 
+### 天猫店铺页 DOM（实测，2026-09-18）
+
+12. **URL 必须转成 `view_shop.htm?search=y`**：用户常给的 `category.htm` / `search.htm` 往往只渲染店铺外壳（0 商品）；「店内搜索页」`view_shop.htm?search=y&orderType=newOn_desc` 才渲染商品。脚本已自动做这个转换（`apply_new_sort`）
+13. **商品卡片是 `dl.item[data-id]`**，标题取 `a.item-name`（兜底 `dt.photo img` 的 alt），图片取 `dt.photo img` 的 src，销量取 `.sale-num`
+14. **天猫商品 ID 在 query 里（`?id=xxx`）**——URL 绝不能整段 `split('?')`，否则所有商品 URL 都变成同一个 `detail.tmall.com/item.htm`，69 个商品被去重成 1 条（真实踩过）。规范化方式：提取 id 后重建 `https://detail.tmall.com/item.htm?id=<id>`
+15. **价格是字体加密的，可破解**：`.c-price` 里是密文（如「曍燰忈叱捨澥」），靠 `@font-face`（AlibabaSans102CustomFont，逐页随机映射）渲染成正常数字。CSV 备注说「React 模板才加密」已过时——**经典模板同样加密**。解法：把密文字符和 `0-9/.` 用同一字体画到 canvas，逐像素比对字形反查映射。实测 197 个密文字符全部解出、68/69 有价格
+16. **React 新版店铺模板暂不支持**（实测 2 家天猫店，卡片是 `[class*="cardContainer"]`）：DOM 里**没有任何商品 ID 和链接**（数据在 React 内部 state），价格同样是密文字体。需要走 React fiber 内部状态才能拿到，后续迭代。这类店铺脚本会抓到 0 条，属预期行为
+
 ### 工程细节
 
-12. **京东新品排序**：view_search 路径第 5 段为 1（形如 `-0-1-0-0-`），实测排序值：`0`=综合、`5`=销量、`4`=价格、`1`=新品
-13. **图片 n7→n0**：只替换 `360buyimg.com/n7/` → `/n0/`，不要全局替换 `n7`
-14. **HTML 图片路径**：必须相对路径 `images/xx.jpg`（HTML 与 images 同在 BASE 下）；写 `jd-baseline/images/xx.jpg` 会路径重复 404
-15. **序号解析**：`jd_new_01_xx.json` 用正则 `r'jd_new_(\d+)_'` 提取，不要用 `split('_')[1]`（会取到 'new' 导致文件互相覆盖）
-16. **CSV 被占用**：Excel 打开 CSV 时写会失败 → 自动降级写 `_v2`；看板会自动识别并指向实际文件
-17. **看板与图片目录必须一起移动**：HTML 引用相对路径 `images/`
-18. **禁止编造数据**：抓不到就如实说「未抓到 / 价格待补」，绝不虚构价格或商品
+17. **京东新品排序**：view_search 路径第 5 段为 1（形如 `-0-1-0-0-`），实测排序值：`0`=综合、`5`=销量、`4`=价格、`1`=新品
+18. **图片 n7→n0**：只替换 `360buyimg.com/n7/` → `/n0/`，不要全局替换 `n7`
+19. **HTML 图片路径**：必须相对路径 `images/xx.jpg`（HTML 与 images 同在 BASE 下）；写 `jd-baseline/images/xx.jpg` 会路径重复 404
+20. **序号解析**：`jd_new_01_xx.json` 用正则 `r'jd_new_(\d+)_'` 提取，不要用 `split('_')[1]`（会取到 'new' 导致文件互相覆盖）
+21. **CSV 被占用**：Excel 打开 CSV 时写会失败 → 自动降级写 `_v2`；看板会自动识别并指向实际文件
+22. **看板与图片目录必须一起移动**：HTML 引用相对路径 `images/`
+23. **禁止编造数据**：抓不到就如实说「未抓到 / 价格待补」，绝不虚构价格或商品
 
 ## 输出格式（固定模板）
 

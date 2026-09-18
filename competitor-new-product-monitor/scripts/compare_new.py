@@ -92,7 +92,16 @@ def main():
     new_files = sorted(glob.glob(os.path.join(base, 'jd_new_*.json')))
 
     if not prev_files:
-        print('未找到上一轮数据（%s），跳过对比（首次抓取仅建档）。' % prev_dir)
+        if not new_files:
+            print('未找到本轮数据（%s/jd_new_*.json），无法对比。' % base)
+            return 1
+        # 首轮：自动把当前数据建档为下一轮的对比基线
+        os.makedirs(prev_dir, exist_ok=True)
+        copied = 0
+        for f in new_files:
+            shutil.copy2(f, os.path.join(prev_dir, os.path.basename(f)))
+            copied += 1
+        print('首轮抓取：已把 %d 个数据文件建档到 %s，作为下一轮对比基线。' % (copied, prev_dir))
         return 0
     if not new_files:
         print('未找到本轮数据（%s/jd_new_*.json），无法对比。' % base)

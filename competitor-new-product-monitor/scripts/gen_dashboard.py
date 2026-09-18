@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""生成花瓣网式瀑布流新品看板 HTML：全部新品图片、店铺筛选、搜索、价格排序、点击放大、
+"""生成花瓣网式瀑布流新品看板 HTML：全部新品图片、品牌导航、搜索、价格排序、点击放大、
 变动角标（新增 / 涨价 / 降价）。
 
 用法: python gen_dashboard.py [BASE]
@@ -12,6 +12,7 @@
 3. 变动角标：读 compare_new.py 产出的 `变动数据.json`，在卡片上标注 新 / 涨 x% / 降 x%
 4. 新增「只看变动」筛选，一键过滤出本轮有变化的商品
 5. CSV 下载链接自动跟随实际文件名（被占用降级为 _v2 时也能正确下载）
+6. 品牌导航改为「全部预览 + 单品牌查看」：默认全部，点品牌只看该品牌，再点一次（或点返回）回到全部
 """
 import glob
 import json
@@ -192,7 +193,8 @@ const DELTA = JSON.parse(document.getElementById('delta').textContent);
 const UP = DELTA.up || {}, DOWN = DELTA.down || {};
 const ADDED = new Set(DELTA.added || []);
 const REMOVED = new Set(DELTA.removed || []);
-let sel = {}, kw = '', sortMode = '', onlyChanged = false, currentList = [];
+let activeStore = null, kw = '', sortMode = '', onlyChanged = false, currentList = [];
+// activeStore === null 表示「全部预览」；否则只展示该品牌
 
 function normUrl(u) {
   if (!u) return u;
@@ -216,16 +218,41 @@ const shortName = (s) => s.replace('京东自营旗舰店', '').replace('珠宝�
   .replace('饰品京东自营', '').replace('京东自营', '');
 
 const stores = [...new Set(ALL.map(i => i.store))];
-stores.forEach(s => sel[s] = true);
 const chipBox = document.getElementById('chips');
 const countMap = ALL.reduce((m, i) => { m[i.store] = (m[i.store] || 0) + 1; return m; }, {});
+
+// 「全部预览」入口：默认选中，一键回到所有品牌
+const allChip = document.createElement('span');
+allChip.className = 'chip all-chip on';
+allChip.textContent = '全部预览 ' + ALL.length;
+allChip.title = '展示所有品牌的全部新品';
+allChip.onclick = () => { activeStore = null; syncChips(); render(); };
+chipBox.appendChild(allChip);
+
+// 每个品牌一个入口：点击后单独呈现该品牌下的商品
+const storeChips = {};
 stores.forEach(s => {
   const c = document.createElement('span');
-  c.className = 'chip on';
+  c.className = 'chip';
   c.textContent = shortName(s) + ' ' + countMap[s];
-  c.onclick = () => { sel[s] = !sel[s]; c.classList.toggle('on', sel[s]); render(); };
+  c.title = '只看 ' + shortName(s) + ' 的商品';
+  c.onclick = () => { activeStore = (activeStore === s) ? null : s; syncChips(); render(); };
+  storeChips[s] = c;
   chipBox.appendChild(c);
 });
+
+// 选中某品牌时出现的「返回全部」快捷入口
+const backChip = document.createElement('span');
+backChip.className = 'chip back-hint';
+backChip.onclick = () => { activeStore = null; syncChips(); render(); };
+chipBox.appendChild(backChip);
+
+function syncChips() {
+  allChip.classList.toggle('on', activeStore === null);
+  stores.forEach(s => storeChips[s].classList.toggle('on', activeStore === s));
+  backChip.classList.toggle('show', activeStore !== null);
+  backChip.textContent = '× 返回全部预览';
+}
 
 const changedCount = ALL.filter(i => deltaOf(i)).length;
 if (changedCount > 0) {
@@ -245,7 +272,7 @@ document.getElementById('kw').addEventListener('input', e => { kw = e.target.val
 document.getElementById('sort').addEventListener('change', e => { sortMode = e.target.value; render(); });
 
 function render() {
-  let list = ALL.filter(i => sel[i.store]);
+  let list = activeStore ? ALL.filter(i => i.store === activeStore) : ALL.slice();
   if (kw) list = list.filter(i => i.title.includes(kw));
   if (onlyChanged) list = list.filter(i => deltaOf(i));
   if (sortMode === 'asc') list = list.filter(i => typeof i.price === 'number').sort((a, b) => a.price - b.price);
@@ -253,8 +280,9 @@ function render() {
   currentList = list;
   document.getElementById('masonry').innerHTML = list.map((it, k) => card(it, k)).join('');
   document.getElementById('empty').style.display = list.length ? 'none' : 'block';
+  const scope = activeStore ? `品牌：${shortName(activeStore)} · ` : '全部预览 · ';
   document.getElementById('count-bar').textContent =
-    `当前显示 ${list.length} 件 / 共 ${ALL.length} 件` + (kw ? `（关键词：${kw}）` : '')
+    scope + `当前显示 ${list.length} 件 / 共 ${ALL.length} 件` + (kw ? `（关键词：${kw}）` : '')
     + (onlyChanged ? '（只看变动）' : '');
 }
 
@@ -305,7 +333,7 @@ html = (TEMPLATE
         .replace('__DATA__', data_json)
         .replace('__DELTA__', delta_json))
 
-out = os.path.join(BASE, '京东竞品新品瀑布流看板-%s.html' % TODAY)
+out = os.path.join(BASE, '%s-%s.html' % (board_name, TODAY))
 with open(out, 'w', encoding='utf-8') as fh:
     fh.write(html)
 

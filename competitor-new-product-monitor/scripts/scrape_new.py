@@ -163,7 +163,7 @@ PROBE_JS = r"""
   const captcha = !!(q('.nc_wrapper') || q('.nc-container') || q('#nc_1_wrapper')
                      || q('.slider-verify') || q('.captcha') || q('iframe[src*="captcha"]')
                      || /安全验证|人机验证|拖动滑块/.test(title));
-  const items = n('li[data-src]') + n('li.j-sku-item') + n('#J_goodsList li')
+  const items = n('dl.item[data-id]') + n('li[data-src]') + n('li.j-sku-item') + n('#J_goodsList li')
               + n('.J_TItems .item') + n('.product-item');
   return {url: url, title: title, bodyLen: bodyLen,
           loginWall: (loginDom || loginUrl), captcha: captcha, itemCount: items};
@@ -205,6 +205,16 @@ SCROLL_JS = r"""
 # 统计加载完成度：卡片数 / 已出价格的数 / 已出真图的数
 READY_JS = r"""
 (() => {
+  // 天猫：卡片是 dl.item[data-id]（店内搜索页），价格为密文（服务端直出，恒为就绪）
+  const tmCards = document.querySelectorAll('dl.item[data-id]');
+  if (tmCards.length) {
+    const imgs = Array.from(document.querySelectorAll('dl.item[data-id] dt.photo img, dl.item[data-id] img'));
+    const imgReady = imgs.filter(e => {
+      const s = e.getAttribute('src') || '';
+      return s && !/\.gif($|\?)/i.test(s) && /alicdn|taobao|tmall/.test(s);
+    }).length;
+    return {cards: tmCards.length, priced: tmCards.length, imgReady: imgReady, platform: 'tmall'};
+  }
   const cards = document.querySelectorAll('li.jSubObject').length
               || document.querySelectorAll('.jItem').length
               || document.querySelectorAll('li.gl-item, #J_goodsList li').length;
@@ -217,7 +227,7 @@ READY_JS = r"""
     const s = e.getAttribute('src') || '';
     return s && !/cms\/g10\/|\.gif($|\?)/i.test(s);
   }).length;
-  return {cards: cards, priced: priced, imgReady: imgReady};
+  return {cards: cards, priced: priced, imgReady: imgReady, platform: 'jd'};
 })()
 """
 
@@ -354,30 +364,92 @@ EXTRACT_JD_JS = r"""
 """ % _EXTRACT_COMMON
 
 EXTRACT_TMALL_JS = r"""
-(() => {
+(new Promise(async (resolve) => {
 %s
-  let cards = Array.from(document.querySelectorAll('.J_TItems .item, #J_ItemList .item, .product-item, .item'));
-  if (!cards.length) cards = Array.from(document.querySelectorAll('[class*="item"]'));
+  // ---------- 天猫价格字体解密 ----------
+  // 天猫店铺列表页的价格用自定义字体加密：DOM 里是密文（如「曍燰忈叱捨澥」），
+  // 浏览器靠 @font-face（AlibabaSans102CustomFont 等）渲染成正常数字，且映射逐页随机。
+  // 解法：把密文字符和 0-9/. 用同一字体画到 canvas，逐像素比对字形，反查映射。
+  const decodeSetup = async () => {
+    const els = Array.from(document.querySelectorAll('.c-price, .g_price'));
+    const cipher = new Set();
+    els.forEach(e => {
+      const t = (e.textContent || '').trim();
+      for (const ch of t) if (ch.trim() && !/[0-9.,]/.test(ch)) cipher.add(ch);
+    });
+    if (!cipher.size) return null;
+    let font = null;
+    for (const f of ['AlibabaSans102CustomFont', 'VerdanaItemRecommendFont']) {
+      try { await document.fonts.load('40px "' + f + '"'); } catch (e) {}
+      if (document.fonts.check('40px "' + f + '"')) { font = f; break; }
+    }
+    if (!font) return null;
+    const glyph = (ch) => {
+      const c = document.createElement('canvas');
+      c.width = 48; c.height = 48;
+      const ctx = c.getContext('2d');
+      ctx.font = '40px "' + font + '"';
+      ctx.textBaseline = 'top';
+      ctx.fillText(ch, 4, 2);
+      const d = ctx.getImageData(0, 0, 48, 48).data;
+      let h = '';
+      for (let y = 0; y < 48; y += 2) {
+        let row = 0;
+        for (let x = 0; x < 48; x += 2) row = (row << 1) | (d[(y * 48 + x) * 4 + 3] > 128 ? 1 : 0);
+        h += row.toString(16);
+      }
+      return h;
+    };
+    const digits = '0123456789.';
+    const digHash = {};
+    for (const d of digits) digHash[d] = glyph(d);
+    const map = {};
+    for (const ch of cipher) {
+      const h = glyph(ch);
+      for (const d of digits) { if (digHash[d] === h) { map[ch] = d; break; } }
+    }
+    return (s) => Array.from(s).map(ch => (ch in map) ? map[ch] : ch).join('');
+  };
+  let decode = null;
+  try { decode = await decodeSetup(); } catch (e) {}
+
+  // 真实卡片是 dl.item[data-id]（店内搜索页）；.J_TItems .item / .product-item 为旧版兜底。
+  let cards = Array.from(document.querySelectorAll('dl.item[data-id]'));
+  if (!cards.length) cards = Array.from(document.querySelectorAll('.J_TItems .item, #J_ItemList .item, .product-item'));
+  if (!cards.length) cards = Array.from(document.querySelectorAll('.item'));
   const out = [], seen = new Set();
   cards.forEach((li) => {
+    if (!li.querySelector) return;
     const a = li.querySelector('a[href*="detail.tmall.com"], a[href*="item.taobao.com"], a[href*="detail.tmall.hk"]');
-    let url = a ? abs(a.getAttribute('href')) : '';
-    url = url.split('#')[0].split('?')[0];
-    if (!url || !/detail\.tmall\.com|item\.taobao\.com/.test(url) || seen.has(url)) return;
-    seen.add(url);
-    const imgRaw = firstAttr(li, ['.productImg img', 'img'], ['data-src', 'data-ks-lazyload', 'src']);
+    if (!a) return;
+    const raw = abs(a.getAttribute('href'));
+    // 关键：天猫商品 ID 在 query（?id=xxx）里，绝不能整段 split('?')——
+    // 否则所有商品 URL 都变成同一个 detail.tmall.com/item.htm，被去重成 1 条。
+    const idm = raw.match(/[?&]id=(\d{6,})/);
+    if (!idm) return;
+    const id = idm[1];
+    if (seen.has(id)) return;
+    seen.add(id);
+    const url = 'https://detail.tmall.com/item.htm?id=' + id;
+    const imgRaw = firstAttr(li, ['dt.photo img', '.productImg img', 'img'], ['src', 'data-src', 'data-ks-lazyload']);
     const img = imgRaw ? abs(imgRaw) : '';
-    let title = firstText(li, ['.productTitle', '.item-name', '.title', '.product-title', '.name']);
+    let title = firstText(li, ['.item-name', '.productTitle', '.title', '.product-title', '.name']);
+    if (!title) { const alt = firstAttr(li, ['dt.photo img', 'img'], ['alt']); if (alt) title = alt.trim(); }
     if (!title && a) title = (a.getAttribute('title') || a.textContent || '').replace(/\s+/g, ' ').trim();
-    if (!title) title = firstAttr(li, ['img'], ['alt']);
-    const priceTxt = firstText(li, ['.productPrice', '.price', '.c-price', '.item-price', 'strong']);
-    const comments = firstText(li, ['.productSellNum', '.sell-num', '.comment', '.sold']);
-    const idm = url.match(/id=(\d{6,})/);
-    out.push({ rank: out.length + 1, title: title, price: toNum(priceTxt), comments: comments,
-               image: img, url: url, id: idm ? idm[1] : '' });
+    let price = null;
+    const pEl = li.querySelector('.c-price') || li.querySelector('.g_price')
+             || li.querySelector('.productPrice, .price, .item-price, strong');
+    if (pEl) {
+      let t = (pEl.textContent || '').trim();
+      if (decode && /[^\x00-\x7F]/.test(t)) t = decode(t);
+      price = toNum(t);
+    }
+    const comments = firstText(li, ['.sale-num', '.productSellNum', '.sell-num', '.comment']);
+    out.push({ rank: out.length + 1, title: title, price: price, comments: comments,
+               image: img, url: url, id: id });
   });
-  return out;
-})()
+  resolve(out);
+}))
 """ % _EXTRACT_COMMON
 
 
@@ -400,6 +472,18 @@ def apply_new_sort(url, platform):
                 return match.group(1) + '-'.join(parts) + match.group(3)
         return url
     if platform == 'tmall':
+        # 实测：category.htm / search.htm 往往只渲染店铺外壳（0 商品），
+        # 「店内搜索页」view_shop.htm?search=y 才会渲染商品卡片（dl.item）。
+        m = re.match(r'^(https?://[^/]+/)(?:category|search|view_shop)\.htm(\?.*)?$', url)
+        if m:
+            query = m.group(2) or ''
+            if 'search=' not in query:
+                query += ('&' if '?' in query else '?') + 'search=y'
+            if 'orderType=' in query:
+                query = re.sub(r'orderType=[^&]*', 'orderType=newOn_desc', query)
+            else:
+                query += ('&' if '?' in query else '?') + 'orderType=newOn_desc'
+            return m.group(1) + 'view_shop.htm' + query
         if 'orderType=' in url:
             return re.sub(r'orderType=[^&]*', 'orderType=newOn_desc', url)
         return url + ('&' if '?' in url else '?') + 'orderType=newOn_desc'
