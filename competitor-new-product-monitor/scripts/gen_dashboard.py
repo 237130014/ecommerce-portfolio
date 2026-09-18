@@ -13,11 +13,14 @@
 4. 新增「只看变动」筛选，一键过滤出本轮有变化的商品
 5. CSV 下载链接自动跟随实际文件名（被占用降级为 _v2 时也能正确下载）
 6. 品牌导航改为「全部预览 + 单品牌查看」：默认全部，点品牌只看该品牌，再点一次（或点返回）回到全部
+7. 修复滚动时卡片跳位 / 图片闪烁：图片写入真实宽高（提前占位），布局由 CSS column-count
+   改为 JS 分列瀑布流（每列独立，图片加载不再触发跨列重排）
 """
 import glob
 import json
 import os
 import re
+import struct
 import sys
 from datetime import datetime
 
@@ -26,6 +29,45 @@ def norm_path(p):
     if p and re.match(r'^/[a-zA-Z]/', p):
         return p[1].upper() + ':' + p[2:]
     return p
+
+
+def img_size(path):
+    """读本地图片真实宽高（PNG / JPEG），失败返回 None。
+
+    为什么需要：看板卡片用懒加载，<img> 不带尺寸时浏览器加载前按 0 高度排版，
+    图片解码后高度骤增，会把多列布局重新平衡掉（表现为滚动时卡片跳位、图片闪烁）。
+    把真实宽高写进 HTML，浏览器就能提前预留空间，布局不再抖动。
+    """
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(8)
+            if head[:8] == b'\x89PNG\r\n\x1a\n':
+                f.seek(16)
+                w, h = struct.unpack('>II', f.read(8))
+                return w, h
+            if head[:2] != b'\xff\xd8':
+                return None
+            f.seek(0)
+            f.read(2)
+            while True:
+                b = f.read(1)
+                if not b:
+                    return None
+                if b != b'\xff':
+                    continue
+                while b == b'\xff':
+                    b = f.read(1)
+                marker = b[0]
+                # SOF0/1/2/3/5/6/7/9/10/11/13/14/15 里带尺寸
+                if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                              0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                    f.read(3)
+                    h, w = struct.unpack('>HH', f.read(4))
+                    return w, h
+                seg = struct.unpack('>H', f.read(2))[0]
+                f.seek(seg - 2, 1)
+    except Exception:
+        return None
 
 
 BASE = norm_path(sys.argv[1]) if len(sys.argv) > 1 else 'jd-baseline'
@@ -53,6 +95,7 @@ for f in files:
             continue
         seen.add(url)
         img = os.path.join(BASE, 'images', '%s_%03d.jpg' % (no, idx))
+        size = img_size(img) or (800, 800)  # 读不到就按电商主图常见的 1:1 兜底
         items.append({
             'store': store,
             'title': it.get('title', ''),
@@ -61,6 +104,8 @@ for f in files:
             'comments': it.get('comments', ''),
             'img': os.path.relpath(img, BASE).replace(os.sep, '/'),
             'url': url,
+            'w': size[0],
+            'h': size[1],
         })
 
 # 变动数据（可能不存在，首次抓取时没有）
@@ -117,13 +162,12 @@ select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-siz
   text-decoration: none; color: #555; }
 .link-btn:hover { background: #eee; }
 #count-bar { padding: 10px 20px; font-size: 13px; color: #888; background: #f6f5f2; }
-.masonry { column-gap: 14px; padding: 0 20px 40px; }
-@media (min-width: 1700px) { .masonry { column-count: 6; } }
-@media (max-width: 1699px) and (min-width: 1300px) { .masonry { column-count: 5; } }
-@media (max-width: 1299px) and (min-width: 1000px) { .masonry { column-count: 4; } }
-@media (max-width: 999px) and (min-width: 700px) { .masonry { column-count: 3; } }
-@media (max-width: 699px) { .masonry { column-count: 2; } }
-.card { break-inside: avoid; margin-bottom: 14px; background: #fff; border-radius: 10px; overflow: hidden;
+/* 分列瀑布流：每列是独立 flex 容器，卡片只在列内流动。
+   不用 CSS column-count 的原因——列布局在内容高度变化时会重新平衡，把卡片跨列搬走；
+   配合懒加载图片（加载前高度 0、加载后数百像素），滚动时就表现为卡片乱跳、图片闪烁。 */
+.masonry { display: flex; align-items: flex-start; gap: 14px; padding: 0 20px 40px; }
+.mcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.card { background: #fff; border-radius: 10px; overflow: hidden;
   box-shadow: 0 1px 4px rgba(0,0,0,.08); transition: transform .2s, box-shadow .2s; }
 .card:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,.12); }
 .card .pic { position: relative; cursor: zoom-in; }
@@ -278,7 +322,7 @@ function render() {
   if (sortMode === 'asc') list = list.filter(i => typeof i.price === 'number').sort((a, b) => a.price - b.price);
   if (sortMode === 'desc') list = list.filter(i => typeof i.price === 'number').sort((a, b) => b.price - a.price);
   currentList = list;
-  document.getElementById('masonry').innerHTML = list.map((it, k) => card(it, k)).join('');
+  layout(list);
   document.getElementById('empty').style.display = list.length ? 'none' : 'block';
   const scope = activeStore ? `品牌：${shortName(activeStore)} · ` : '全部预览 · ';
   document.getElementById('count-bar').textContent =
@@ -293,7 +337,7 @@ function card(it, k) {
   const badge = d ? `<span class="delta ${d.cls}">${d.text}</span>` : '';
   return `<div class="card">
     <div class="pic" onclick="openLB(${k})">
-      <img loading="lazy" src="${it.img}" alt="${it.title.replace(/"/g, '&quot;')}">
+      <img loading="lazy" decoding="async" width="${it.w || 800}" height="${it.h || 800}" src="${it.img}" alt="${it.title.replace(/"/g, '&quot;')}">
       <span class="tag">${shortName(it.store)}</span>
       ${badge}
     </div>
@@ -303,6 +347,34 @@ function card(it, k) {
       ${act}
     </div>
   </div>`;
+}
+
+// 按容器宽度决定列数（卡片最小约 220px）
+function colCount(box) {
+  const w = box.clientWidth || (window.innerWidth - 40);
+  return Math.max(2, Math.min(6, Math.floor((w + 14) / 234)));
+}
+
+// 分列瀑布流：把卡片依次放进「当前最矮」的那一列，列之间互不影响。
+// 这样图片陆续加载只会撑高自己所在的列，不会引发跨列重排。
+function layout(list) {
+  const box = document.getElementById('masonry');
+  const n = colCount(box);
+  const colW = (box.clientWidth - 14 * (n - 1)) / n;
+  const html = new Array(n).fill('');
+  const heights = new Array(n).fill(0);
+  const INFO_H = 92;   // 标题两行 + 价格/评价行 + 内边距的估算高度
+  const ACT_H = 22;    // 有活动标签时多出的高度
+
+  list.forEach((it, k) => {
+    let t = 0;
+    for (let i = 1; i < n; i++) if (heights[i] < heights[t]) t = i;
+    html[t] += card(it, k);
+    const ratio = (it.w && it.h) ? it.h / it.w : 1;
+    heights[t] += colW * ratio + INFO_H + (it.activity ? ACT_H : 0) + 14;
+  });
+
+  box.innerHTML = html.map(h => `<div class="mcol">${h}</div>`).join('');
 }
 
 function openLB(k) {
@@ -319,6 +391,13 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLB(); }
 
 window.addEventListener('scroll', () => {
   document.getElementById('toTop').style.display = window.scrollY > 600 ? 'block' : 'none';
+});
+
+// 窗口尺寸变化 → 重新计算列数并分列（防抖，避免拖拽窗口时反复重排）
+let rzTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(() => { layout(currentList); }, 200);
 });
 
 render();
