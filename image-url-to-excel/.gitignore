@@ -1,0 +1,6 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 自测产生的中间文件（图片素材、样例表、输出表）
+selftest/_work/
