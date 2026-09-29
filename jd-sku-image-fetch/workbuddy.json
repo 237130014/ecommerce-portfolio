@@ -1,0 +1,14 @@
+{
+  "name": "jd-sku-image-fetch",
+  "display_name": "京东SKU主图抓取",
+  "display_name_zh": "京东SKU主图抓取",
+  "display_name_en": "JD SKU Main Image Fetcher",
+  "description_zh": "批量抓取京东商品第一张主图，按榜单批次分目录归档，输出带嵌入缩略图的 Excel。",
+  "description_en": "Batch-fetch JD product main images, archived per ranking-list batch, with an embedded-thumbnail Excel report.",
+  "version": "1.0.0",
+  "author": "流星",
+  "requires": {
+    "cli": ["bsk"],
+    "python": ["openpyxl", "Pillow"]
+  }
+}

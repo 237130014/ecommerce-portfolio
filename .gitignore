@@ -27,6 +27,9 @@ yarn-error.log*
 !tsconfig.json
 # 配置模板需要随仓库发布；真实的 stores.json 仍被上面的 *.json 排除，由使用者各填自己的店铺
 !competitor-new-product-monitor/references/stores.example.json
+# jd-sku-image-fetch：模板与技能元数据随仓库发布；真实的 skus.csv / 抓取数据仍被排除
+!jd-sku-image-fetch/skus.example.csv
+!jd-sku-image-fetch/workbuddy.json
 data/
 output/
 logs/
