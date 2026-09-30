@@ -36,15 +36,22 @@ except Exception:
         return re.sub(r'[<>:"/\\|?*]', "_", n).strip("_ .") or "批次"
 
 
+def default_base() -> Path:
+    """默认 BASE：脚本平铺时=所在目录；技能包布局（scripts/）时=包根目录。"""
+    here = Path(__file__).resolve().parent
+    return here.parent if here.name == "scripts" else here
+
+
 def main():
     ap = argparse.ArgumentParser(description="迁移到 runs/ 批次目录结构")
-    ap.add_argument("base", nargs="?", default=".")
+    ap.add_argument("base", nargs="?", default=None,
+                    help="工具目录（默认：脚本所在目录）")
     ap.add_argument("--run-name", default="历史批次",
                     help="迁入的批次目录名（默认「历史批次」）")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    BASE = Path(norm_path(args.base)).resolve()
+    BASE = Path(norm_path(args.base)).resolve() if args.base else default_base()
     target = BASE / "runs" / sanitize_run_name(args.run_name)
 
     # 判断是否还有旧结构残留

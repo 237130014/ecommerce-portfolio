@@ -14,13 +14,37 @@
 ## 30 秒上手
 
 ```bash
-# 0) 前置（一次性）
-#    - 安装 bsk 并连好浏览器扩展
-#    - 双击 start-bsk-daemon.bat，窗口别关
-#    - 在 bsk 连着的 Chrome 里手动登录一次京东
-#    - pip install openpyxl Pillow
+# 一次性（约 10 分钟）
+#   1. 装 Python 3.10+，安装首屏务必勾 "Add python.exe to PATH"
+#   2. 装 bsk:  irm https://raw.githubusercontent.com/Tencent/BrowserSkill/main/install.ps1 | iex
+#   3. 浏览器装 BrowserSkill 扩展
+#   4. 双击 setup.bat        ← 自动找 Python、按需装依赖、跑自检
+#   5. 双击 start-bsk-daemon.bat，窗口别关
+#   6. 在 bsk 连着的浏览器里登录一次 jd.com
 
-# 1) 双击 run.bat，选 1，输入本次抓几个 —— 结束
+# 日常
+#   双击 run.bat → 选 2 → 把榜单 xlsx 拖进去 → 输入数量（建议 25-30）→ 等它跑完
+```
+
+**卡在哪一步，就看 [`SOP.md`](./SOP.md)（面向非技术用户的完整操作手册）。**
+出问题先跑自检：`python doctor.py`（或菜单选 8）。
+
+## 安装给别人用
+
+三个文件承担了全部「傻瓜式」体验：
+
+| 文件 | 作用 |
+|---|---|
+| `setup.bat` | **一键安装**：找 Python → 依赖已齐就直接复用、不齐则建包内私有 `.venv` 并安装 → 生成 `skus.csv` → 检查 bsk → 跑自检。**绝不污染系统环境** |
+| `doctor.py` | **环境自检**：只用标准库，任何 Python 3.8+ 都能跑；逐项报告 Python / openpyxl / Pillow / bsk / daemon / 扩展 / 数据目录，并给出修复命令。`--json` 供 AI 消费 |
+| `SOP.md` | **操作手册**：给不懂命令行的人，从装 Python 到拿结果的完整流程 + 反风控纪律 + 常见问题表 |
+
+`run.bat` 也会自动找 Python（顺序：`.venv\` → 旧的 `..\jd-shop-audit\venv\` → `py -3` → `python`），
+并支持**非交互调用**（给 AI / 脚本用，执行完直接退出）：
+
+```bash
+run.bat 4          # 等于菜单里选 4
+run.bat stats      # 命名入口：stats / doctor / export / repair / bsk
 ```
 
 ## 为什么用 bsk 而不是 Playwright
@@ -64,27 +88,33 @@
 
 ## 前置条件（一次性）
 
-1. **bsk daemon 常驻** —— 双击 `start-bsk-daemon.bat`，**窗口别关**
+1. **Python 3.10+** —— 装完后双击 `setup.bat`，剩下的依赖它自己搞定
+2. **bsk daemon 常驻** —— 双击 `start-bsk-daemon.bat`，**窗口别关**
    - 端口固定 53899，避开被 VPN（iKuuuVPNCore.exe）占用的默认 52800
-2. **浏览器登录京东** —— 在 bsk 连着的那个 Chrome 里手动登录一次，长期有效
-3. 验证：`bsk doctor` 里 `daemon running` 与 `extension connected` 都是 ok
+3. **浏览器登录京东** —— 在 bsk 连着的那个 Chrome 里手动登录一次，长期有效
+4. 验证：`python doctor.py`（或 `run.bat 8`）全 OK 即可；也可用 `bsk doctor` 复核
 
 ## 用法
 
 双击 `run.bat`：
 ```
 1. Fetch from skus.csv  (asks how many)   ← 日常用这个，会先问你抓几个
-2. Fetch from xlsx      (drag file)
+2. Fetch from xlsx      (drag file)       ← 拖榜单文件
 3. Check bsk daemon status
 4. Show progress / stats                   ← 看进度、还剩多少、要多久
 5. Force refetch ALL
 6. Export embedded-image xlsx
 7. Fix report.csv (health check / repair)
-8. Exit
+8. Run self-test (what is missing?)        ← 环境自检
+9. Exit
 ```
 
 命令行：
 ```bash
+# 环境自检（首次/排障先跑这个）
+python doctor.py
+python doctor.py --json
+
 # 从 skus.csv 抓（默认只看榜单前 50 名，自动跳过已完成的）
 python fetch_main_images.py . --top 50 --limit 25
 
@@ -173,7 +203,7 @@ python fetch_main_images.py . --limit 25 --delay 5-12
 runs/<榜单>_<日期>/images/{sku}.jpg   主图原图（800×800 起，AVIF 编码，扩展名按源图格式）
 runs/<榜单>_<日期>/report.csv         报告：sku/状态/标题/价格/累计评价数/营销活动/店铺/图数/图片文件/URL/时间
 runs/<榜单>_<日期>/<批次同名>.xlsx    ★ 带嵌入图片的表格（J 列直接看图，点图开原图）
-runs/<榜单>_<日期>/state.json         断点续传状态（含 URL，用于报告修复）
+runs/<榜单>_<日期>/state.json         断点续传状态（含 URL、本批 SKU 全集与来源）
 runs/<榜单>_<日期>/logs/              运行日志 + 调试截图 + 导出日志
 runs/<榜单>_<日期>/.thumbs/           缩略图缓存（90×90 JPEG，可随时删）
 ```

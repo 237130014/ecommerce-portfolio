@@ -83,6 +83,20 @@ def norm_path(p: str) -> str:
     return p
 
 
+def default_base() -> Path:
+    """默认数据目录（BASE）。
+
+    两种目录布局都支持：
+      · 源码布局：脚本平铺在工具目录下      → BASE = 脚本所在目录
+      · 技能包布局：脚本在 <包>/scripts/ 下  → BASE = 包根目录
+
+    技能包（~/.workbuddy/skills/jd-sku-image-fetch/）就是第二种，
+    若还按脚本目录当 BASE，数据会落进 scripts/ 里，与 run.bat 不一致。
+    """
+    here = Path(__file__).resolve().parent
+    return here.parent if here.name == "scripts" else here
+
+
 def log(msg: str, logfile=None):
     line = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
     print(line, flush=True)
@@ -439,6 +453,23 @@ def save_state(state_file: Path, state: dict):
     state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def build_state(done: dict, failed: dict | None = None,
+                skus_all: list | None = None, source: str | None = None) -> dict:
+    """组装 state.json。
+
+    除 done/failed 外，额外记录**本批次的 SKU 全集**与来源。
+    原因：一个批次可能是拖 xlsx 跑的，它的清单跟 BASE/skus.csv 完全是两份，
+    fetch_stats.py 若拿 skus.csv 去对账就会算出"已完成 0"这种假象。
+    老批次没有 skus_all 字段，统计端会自动退回旧逻辑。
+    """
+    st = {"done": done, "failed": failed or {}}
+    if skus_all:
+        st["skus_all"] = list(skus_all)
+    if source:
+        st["source"] = source
+    return st
+
+
 def _flat(v) -> str:
     """把字段里的换行/制表/不间断空格压成单空格。
 
@@ -751,6 +782,16 @@ def main():
     # ---- 断点续传过滤 ----
     state = load_state(STATE_FILE)
     done = state.get("done", {})
+
+    # 本批 SKU 全集 + 来源，写进 state.json，供 fetch_stats.py 对账
+    SCOPE_SKUS = list(skus)
+    if args.from_xlsx:
+        SOURCE_LABEL = f"xlsx:{Path(norm_path(args.from_xlsx)).name}"
+    elif args.skus_file:
+        SOURCE_LABEL = f"csv:{Path(norm_path(args.skus_file)).name}"
+    else:
+        SOURCE_LABEL = "csv:skus.csv"
+
     if not args.force:
         pending = [s for s in skus if s not in done]
         log(f"[信息] 已完成 {len(done)} 个，待抓 {len(pending)} 个", logfile)
@@ -829,7 +870,8 @@ def main():
                         if fail_streak >= args.max_fail:
                             stop_reason = f"连续 {fail_streak} 次风控，熔断停止"
                             log(f"\n[熔断] {stop_reason}", logfile)
-                            save_state(STATE_FILE, {"done": done, "failed": {}})
+                            save_state(STATE_FILE, build_state(
+                                done, skus_all=SCOPE_SKUS, source=SOURCE_LABEL))
                             write_report(REPORT_FILE, merge_with_history(REPORT_FILE, rows), logfile)
                             break
                     elif not v.get("firstBig"):
@@ -884,7 +926,8 @@ def main():
                         else:
                             fail_streak += 1
 
-            save_state(STATE_FILE, {"done": done, "failed": {}})
+            save_state(STATE_FILE, build_state(
+                done, skus_all=SCOPE_SKUS, source=SOURCE_LABEL))
             written = write_report(REPORT_FILE, merge_with_history(REPORT_FILE, rows), logfile)
 
             if fail_streak >= args.max_fail:

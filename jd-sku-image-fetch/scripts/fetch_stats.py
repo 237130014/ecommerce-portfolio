@@ -16,19 +16,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fetch_main_images import (  # noqa: E402
-    norm_path, read_skus_from_csv, resolve_run_dir,
+    default_base, norm_path, read_skus_from_csv, resolve_run_dir,
 )
 
-BASE = Path(__file__).resolve().parent
+BASE = default_base()
 
 
-def load_done(state_file: Path) -> dict:
+def load_state(state_file: Path) -> dict:
+    """读 state.json 全文（含 done / failed / skus_all / source）。"""
     if not state_file.exists():
         return {}
     try:
-        return json.loads(state_file.read_text(encoding="utf-8")).get("done", {})
+        return json.loads(state_file.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def load_done(state_file: Path) -> dict:
+    return load_state(state_file).get("done", {})
 
 
 def find_xlsx(run_dir: Path) -> Path | None:
@@ -47,10 +52,32 @@ def find_xlsx(run_dir: Path) -> Path | None:
 
 
 def stats_one(run_dir: Path, skus: list[str], top: int) -> int:
-    skus = skus[:top] if top > 0 else skus
-    done = load_done(run_dir / "state.json")
-    done_in_scope = [s for s in skus if s in done]
-    pending = [s for s in skus if s not in done]
+    state = load_state(run_dir / "state.json")
+    done = state.get("done", {})
+
+    # 本批的 SKU 全集：优先用 state 里记录的（拖 xlsx 跑的批次，其清单
+    # 跟 BASE/skus.csv 是两份不同的东西，用 skus.csv 对账会算出假的"已完成 0"）。
+    scope_all = state.get("skus_all") or []
+    if scope_all:
+        scope = scope_all
+        scope_note = f"本批清单 {len(scope)} 个"
+        if top and top > 0 and len(scope) > top:
+            scope = scope[:top]
+            scope_note = f"前 {top} 名（本批清单 {len(scope_all)} 个）"
+    else:
+        cand = skus[:top] if top > 0 else skus
+        if done and skus and not any(s in done for s in cand):
+            # 老批次（升级前跑的）没有 skus_all。若当前 skus.csv 跟本批
+            # 完全对不上，说明这份 csv 根本不是它的来源 —— 直接按 state
+            # 自身的记录统计，别报"已完成 0"误导人。
+            scope = list(done.keys())
+            scope_note = f"state 记录（与当前 skus.csv 不匹配，共 {len(scope)} 个）"
+        else:
+            scope = cand
+            scope_note = f"前 {top} 名" if top > 0 else "全部"
+
+    done_in_scope = [s for s in scope if s in done]
+    pending = [s for s in scope if s not in done]
     img_dir = run_dir / "images"
     imgs = len(list(img_dir.glob("*"))) if img_dir.exists() else 0
 
@@ -63,10 +90,14 @@ def stats_one(run_dir: Path, skus: list[str], top: int) -> int:
     print("  京东 SKU 主图抓取 · 进度")
     print("=" * 58)
     print(f"  批次目录：{rel}")
-    print(f"  目标范围：前 {top} 名" if top > 0 else "  目标范围：全部")
-    print(f"  已完成  ：{len(done_in_scope)} / {len(skus)}")
+    if state.get("source"):
+        print(f"  清单来源：{state['source']}")
+    print(f"  目标范围：{scope_note}")
+    print(f"  已完成  ：{len(done_in_scope)} / {len(scope)}")
     print(f"  待抓    ：{len(pending)}")
     print(f"  图片目录：{imgs} 个文件")
+    if state.get("failed"):
+        print(f"  失败记录：{len(state['failed'])} 个（重跑会自动重试）")
 
     xlsx = find_xlsx(run_dir)
     if xlsx:
@@ -87,7 +118,7 @@ def stats_one(run_dir: Path, skus: list[str], top: int) -> int:
         if len(pending) > 5:
             print(f"    ... 还有 {len(pending) - 5} 个")
     else:
-        print(f"  [完成] 前 {top} 名已全部抓完。" if top > 0 else "  [完成] 已全部抓完。")
+        print(f"  [完成] 本批 {len(scope)} 个已全部抓完。")
         print("         要重抓加 --force；要扩到更多名次改 --top。")
 
     print()
@@ -123,11 +154,17 @@ def list_all(skus: list[str]) -> int:
 
 
 def main():
+    global BASE
     ap = argparse.ArgumentParser(description="抓取进度统计")
+    ap.add_argument("base", nargs="?", default=None,
+                    help="BASE 数据目录（默认：工具目录；技能包布局下为包根目录）")
     ap.add_argument("--run", help="指定批次目录名（默认最新批次）")
     ap.add_argument("--all", action="store_true", help="列出所有批次概览")
     ap.add_argument("--top", type=int, default=50, help="目标范围：前 N 名（0=全部）")
     args = ap.parse_args()
+
+    if args.base:
+        BASE = Path(norm_path(args.base)).resolve()
 
     csv_path = BASE / "skus.csv"
     skus = read_skus_from_csv(str(csv_path)) if csv_path.exists() else []

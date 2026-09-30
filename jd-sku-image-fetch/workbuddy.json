@@ -3,10 +3,13 @@
   "display_name": "京东SKU主图抓取",
   "display_name_zh": "京东SKU主图抓取",
   "display_name_en": "JD SKU Main Image Fetcher",
-  "description_zh": "批量抓取京东商品主图与关键指标（标题、价格、累计评价数、营销活动），按榜单批次分目录归档，输出带嵌入缩略图的 Excel。",
-  "description_en": "Batch-fetch JD product main images plus key metrics (title, price, review count, promotions), archived per ranking-list batch, with an embedded-thumbnail Excel report.",
-  "version": "2.0.0",
+  "description_zh": "批量抓取京东商品主图与关键指标（标题、价格、累计评价数、营销活动），按榜单批次分目录归档，输出带嵌入缩略图的 Excel。自带一键安装（setup.bat）与环境自检（doctor.py），用户不需要懂命令行。",
+  "description_en": "Batch-fetch JD product main images plus key metrics (title, price, review count, promotions), archived per ranking-list batch, with an embedded-thumbnail Excel report. Ships with a one-click installer and a self-check so non-technical users need no command line.",
+  "version": "2.1.0",
   "author": "流星",
+  "install": "setup.bat",
+  "self_check": "doctor.py",
+  "guide": "SOP.md",
   "requires": {
     "cli": ["bsk"],
     "python": ["openpyxl", "Pillow"]

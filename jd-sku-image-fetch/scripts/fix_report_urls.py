@@ -59,6 +59,12 @@ def _load_resolver():
 resolve_run_dir = _load_resolver()
 
 
+def default_base() -> Path:
+    """默认 BASE：脚本平铺时=所在目录；技能包布局（scripts/）时=包根目录。"""
+    here = Path(__file__).resolve().parent
+    return here.parent if here.name == "scripts" else here
+
+
 def norm_path(p: str) -> str:
     if not p:
         return p
@@ -160,14 +166,14 @@ def parse_log_urls(base: Path) -> dict[str, str]:
 
 def main():
     ap = argparse.ArgumentParser(description="修复 report.csv：URL 缺失 / 失败行被覆盖")
-    ap.add_argument("base", nargs="?", default=".",
-                    help="项目根目录或批次目录（默认当前目录）")
+    ap.add_argument("base", nargs="?", default=None,
+                    help="项目根目录或批次目录（默认：工具目录）")
     ap.add_argument("--run", help="指定批次目录名（默认最新批次）")
     ap.add_argument("--csv", default="report.csv")
     ap.add_argument("--apply", action="store_true", help="真正写回（默认只体检）")
     args = ap.parse_args()
 
-    ROOT = Path(norm_path(args.base)).resolve()
+    ROOT = Path(norm_path(args.base)).resolve() if args.base else default_base()
 
     # 定位批次目录：传入 [[[BASE 根]]] 时自动找最新批次；传入批次目录时直接用
     if (ROOT / "report.csv").exists() or ((ROOT / "state.json").exists() and not (ROOT / "runs").is_dir()):

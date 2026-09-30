@@ -79,6 +79,12 @@ def _load_resolver():
         return _fallback
 
 
+def default_base() -> Path:
+    """默认 BASE：脚本平铺时=所在目录；技能包布局（scripts/）时=包根目录。"""
+    here = Path(__file__).resolve().parent
+    return here.parent if here.name == "scripts" else here
+
+
 resolve_run_dir = _load_resolver()
 
 
@@ -294,7 +300,7 @@ def write_with_fallback(wb, out_path: Path, logfile: Path | None) -> Path | None
 
 def main():
     ap = argparse.ArgumentParser(description="report.csv → 带嵌入图片的 xlsx")
-    ap.add_argument("base", nargs="?", default=".", help="BASE 数据目录（默认当前目录）")
+    ap.add_argument("base", nargs="?", default=None, help="BASE 数据目录（默认：工具目录）")
     ap.add_argument("--csv", default="report.csv", help="输入 CSV（默认 report.csv）")
     ap.add_argument("--out", default="report_images.xlsx", help="输出 xlsx（默认 report_images.xlsx）")
     ap.add_argument("--size", type=int, default=90, help="缩略图像素边长（默认 90）")
@@ -308,7 +314,7 @@ def main():
 
     # 定位批次目录：支持「BASE 根目录」和「runs/<批次>/」两种结构，
     # 以及外部脚本把批次目录当 base 直接传进来的情况。
-    BASE_ARG = Path(norm_path(args.base)).resolve()
+    BASE_ARG = Path(norm_path(args.base)).resolve() if args.base else default_base()
 
     # 传入的本来就是批次目录（有 report.csv）→ 直接用
     looks_like_run = (BASE_ARG / "report.csv").exists()
