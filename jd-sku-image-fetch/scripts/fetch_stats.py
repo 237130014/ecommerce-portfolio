@@ -31,6 +31,21 @@ def load_done(state_file: Path) -> dict:
         return {}
 
 
+def find_xlsx(run_dir: Path) -> Path | None:
+    """找批次目录里的嵌图表格。
+
+    批次重构后表格与批次目录同名（<批次名>.xlsx），不再是固定 report_images.xlsx，
+    这里两种都认，并跳过 Excel 的 ~$ 临时锁文件。
+    """
+    preferred = run_dir / f"{run_dir.name}.xlsx"
+    if preferred.exists():
+        return preferred
+    for p in sorted(run_dir.glob("*.xlsx")):
+        if not p.name.startswith("~$"):
+            return p
+    return None
+
+
 def stats_one(run_dir: Path, skus: list[str], top: int) -> int:
     skus = skus[:top] if top > 0 else skus
     done = load_done(run_dir / "state.json")
@@ -53,8 +68,8 @@ def stats_one(run_dir: Path, skus: list[str], top: int) -> int:
     print(f"  待抓    ：{len(pending)}")
     print(f"  图片目录：{imgs} 个文件")
 
-    xlsx = run_dir / "report_images.xlsx"
-    if xlsx.exists():
+    xlsx = find_xlsx(run_dir)
+    if xlsx:
         print(f"  表格    ：{xlsx.name}  ({xlsx.stat().st_size / 1024:.0f} KB)")
     print()
 
@@ -99,7 +114,7 @@ def list_all(skus: list[str]) -> int:
     for d in dirs:
         done = load_done(d / "state.json")
         imgs = len(list((d / "images").glob("*"))) if (d / "images").is_dir() else 0
-        x = "有" if (d / "report_images.xlsx").exists() else "-"
+        x = "有" if find_xlsx(d) else "-"
         name = d.name if len(d.name) <= 40 else d.name[:37] + "..."
         print(f"  {name:<40} {len(done):>6} {imgs:>6}  {x}")
     print("=" * 74)

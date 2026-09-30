@@ -1,7 +1,11 @@
 # jd-sku-image-fetch — 京东 SKU 主图批量抓取
 
+> **v2.0**（2026-09-30）：新增**累计评价数**与**营销活动**两个抓取项，
+> 导出 Excel 的缩略图列由 H 顺移到 **J**。v1.0 代码已单独归档，未被覆盖。
+
 给一批京东 SKU，逐个打开商品详情页，抓**第一张主图原图**（800×800 起），
-附标题、价格、店铺，按**榜单批次分目录归档**，输出 `images/{sku}.jpg` + `report.csv` + 嵌图 Excel。
+附标题、价格、**累计评价数**、**营销活动**、店铺，按**榜单批次分目录归档**，
+输出 `images/{sku}.jpg` + `report.csv` + 嵌图 Excel。
 
 > 这是一个 **WorkBuddy / Claude Code 技能包**：把本目录整体拷到
 > `~/.workbuddy/skills/jd-sku-image-fetch/` 即可被识别，用中文名
@@ -167,8 +171,8 @@ python fetch_main_images.py . --limit 25 --delay 5-12
 
 ```
 runs/<榜单>_<日期>/images/{sku}.jpg   主图原图（800×800 起，AVIF 编码，扩展名按源图格式）
-runs/<榜单>_<日期>/report.csv         报告：sku/状态/标题/价格/店铺/主图数/图片文件/URL/时间
-runs/<榜单>_<日期>/<批次同名>.xlsx    ★ 带嵌入图片的表格（H 列直接看图，点图开原图）
+runs/<榜单>_<日期>/report.csv         报告：sku/状态/标题/价格/累计评价数/营销活动/店铺/图数/图片文件/URL/时间
+runs/<榜单>_<日期>/<批次同名>.xlsx    ★ 带嵌入图片的表格（J 列直接看图，点图开原图）
 runs/<榜单>_<日期>/state.json         断点续传状态（含 URL，用于报告修复）
 runs/<榜单>_<日期>/logs/              运行日志 + 调试截图 + 导出日志
 runs/<榜单>_<日期>/.thumbs/           缩略图缓存（90×90 JPEG，可随时删）
@@ -176,13 +180,15 @@ runs/<榜单>_<日期>/.thumbs/           缩略图缓存（90×90 JPEG，可随
 
 ### <批次同名>.xlsx（抓完自动生成）
 
-把 `report.csv` 转成 Excel，**H 列直接嵌入 90×90 缩略图**，不用再对着 URL 猜图长什么样。
+把 `report.csv` 转成 Excel，**J 列直接嵌入 90×90 缩略图**，不用再对着 URL 猜图长什么样。
 
 | 列 | 内容 |
 |---|---|
-| A–G | SKU / 状态 / 标题 / 价格 / 店铺 / 图数 / 本地图片名 |
-| **H** | **主图缩略图（90×90）** |
-| I–K | 商品链接 / 备注 / 抓取时间 |
+| A–I | SKU / 状态 / 标题 / 价格 / **累计评价数** / **营销活动** / 店铺 / 图数 / 本地图片名 |
+| **J** | **主图缩略图（90×90）** |
+| K–M | 商品链接 / 备注 / 抓取时间 |
+
+> v2.0 新增「累计评价数」「营销活动」两列，缩略图列随之**由 H 移到 J**。
 
 **点图看原图**：缩略图挂了超链接，点一下用浏览器打开 800×800 原图（画质不受缩略图影响）。
 个别 SKU 的 CDN 地址丢失时，自动改为打开本地 `images/` 里的原图文件，效果一致。
@@ -208,7 +214,7 @@ python fetch_main_images.py . --no-xlsx                 # 跑完不自动导出
 > 重抓时若失败，**不会覆盖**该 SKU 已有的成功记录（避免一次风控抹掉成果）。
 > 想彻底重来用 `--force`。
 
-## 页面选择器（2026-09-29 实测）
+## 页面选择器（2026-09-30 实测）
 
 | 字段 | 选择器 |
 |---|---|
@@ -217,11 +223,19 @@ python fetch_main_images.py . --no-xlsx                 # 跑完不自动导出
 | 标题 | `document.title` 去掉尾部「【行情 报价 价格 评测】-京东」 |
 | 价格 | `.product-price` |
 | 店铺 | `.top-name-tag` |
+| **累计评价数** | `.product-price-panel--options-comment`（首屏稳定）→ 兜底 `#comment-title` |
+| **营销活动** | `.page-right-discount`（价格下方「已享受 / 可再享」区域） |
 
-京东详情页会改版，选择器失效时用 `probe.py` 重新探测：
+京东详情页会改版，选择器失效时**直接现场问页面**（bsk 会话里查 DOM，无需额外脚本）：
+
 ```bash
-python probe.py --sku 100012043978
+bsk session start                      # 记下返回的 session id
+bsk navigate "https://item.jd.com/<sku>.html" --session <id> --wait-until load
+bsk evaluate --session <id> "document.querySelector('.product-price-panel--options-comment')?.innerText"
+bsk session stop <id>
 ```
+
+查到的新选择器回填到上表，并同步改 `fetch_main_images.py` 里的 `EXTRACT_JS`。
 
 ## 踩坑记录
 

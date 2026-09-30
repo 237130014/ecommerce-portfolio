@@ -32,8 +32,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-FIELDS = ["sku", "status", "title", "price", "shop", "img_count",
-          "image_file", "image_url", "page_url", "note", "ts"]
+FIELDS = ["sku", "status", "title", "price", "comment_count", "promo",
+          "shop", "img_count", "image_file", "image_url", "page_url",
+          "note", "ts"]
 
 
 def _load_resolver():
@@ -213,6 +214,8 @@ def main():
         r.update({
             "status": "ok",
             "title": v.get("title", ""), "price": v.get("price", ""),
+            "comment_count": v.get("comment_count", ""),
+            "promo": v.get("promo", ""),
             "shop": v.get("shop", ""), "img_count": v.get("img_count", ""),
             "image_file": v["image"], "image_url": u,
             "page_url": v.get("page_url", ""),

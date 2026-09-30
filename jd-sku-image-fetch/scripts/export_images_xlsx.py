@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""把 report.csv 导出成带嵌入图片的 report_images.xlsx。
+"""把 report.csv 导出成带嵌入图片的 xlsx。
 
 设计要点
 --------
@@ -10,14 +10,19 @@
 3. 需求：格子里是 90x90 缩略图，但点开要看原图清晰度。
    做法 = 嵌入 90x90 缩略图 + 给图片挂指向「原图 URL」的超链接。
    Excel 里点图会打开浏览器看原图，画质不受缩略图影响。
-4. 原 H 列 URL 文本按需求删掉，不再单独占一列（信息保留在超链接里）。
+4. 原 URL 文本按需求删掉，不再单独占一列（信息保留在超链接里）。
+5. 批次重构后默认输出与批次目录同名（`<批次名>.xlsx`），便于分辨批次。
+   缩略图列位置由列定义决定，v2.0 在「价格」后插入「累计评价数」「营销活动」
+   两列后，缩略图列已由 H 顺移到 J —— 不要再硬编码列号。
 
 用法
 ----
-    python export_images_xlsx.py [BASE] [--csv report.csv] [--out report_images.xlsx]
-                                 [--size 90] [--quality 88] [--no-url]
+    python export_images_xlsx.py [BASE] [--run <批次名>] [--all-runs]
+                                 [--csv report.csv] [--out <文件名>.xlsx]
+                                 [--size 90] [--quality 88] [--keep-url]
 
-    BASE 默认当前目录；脚本会读 BASE/report.csv、BASE/images/。
+    BASE 默认当前目录；不传 --run 自动取 runs/ 下最新批次，
+    输出为 `<批次目录名>.xlsx`。
 """
 
 from __future__ import annotations
@@ -92,6 +97,8 @@ HEADER_CN = {
     "status": "状态",
     "title": "商品标题",
     "price": "价格",
+    "comment_count": "累计评价数",
+    "promo": "营销活动",
     "shop": "店铺",
     "img_count": "图数",
     "image_file": "本地图片",
@@ -114,6 +121,8 @@ COL_WIDTH = {
     "status": 10,
     "title": 46,
     "price": 12,
+    "comment_count": 13,
+    "promo": 42,
     "shop": 18,
     "img_count": 7,
     "image_file": 20,
@@ -149,9 +158,10 @@ def build_workbook(rows: list[dict], base: Path, px: int, quality: int,
     ws = wb.active
     ws.title = "主图抓取结果"
 
-    # 列顺序：H 列位置放嵌入图，URL 文本按需决定是否保留
-    cols = ["sku", "status", "title", "price", "shop", "img_count",
-            "image_file", "image"]
+    # 列顺序：v2.0 起在 price 后插入「累计评价数」「营销活动」两列，
+    #         嵌入图列随之后移（不再固定是 H 列，位置由本列表决定）
+    cols = ["sku", "status", "title", "price", "comment_count", "promo",
+            "shop", "img_count", "image_file", "image"]
     if keep_url_col:
         cols.append("image_url")
     cols += ["page_url", "note", "ts"]

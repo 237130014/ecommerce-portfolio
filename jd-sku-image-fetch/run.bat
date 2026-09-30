@@ -44,7 +44,7 @@ echo   2. Fetch from xlsx      (drag file)
 echo   3. Check bsk daemon status
 echo   4. Show progress / stats
 echo   5. Force refetch ALL
-echo   6. Export xlsx with images  (report_images.xlsx)
+echo   6. Export embedded-image xlsx  (named after the batch)
 echo   7. Repair report.csv         (check / fix URLs)
 echo   8. Exit
 echo.
@@ -137,10 +137,10 @@ goto menu
 
 :export_xlsx
 echo.
-echo Exporting report_images.xlsx (embedded thumbnails in column H) ...
+echo Exporting embedded-image xlsx (thumbnail column: J) ...
 "!PY!" export_images_xlsx.py .
 echo.
-echo Close the old report_images.xlsx in Excel first, or it will save as _2.
+echo Close the old xlsx in Excel first, or it will save as _2.
 echo.
 pause
 goto menu

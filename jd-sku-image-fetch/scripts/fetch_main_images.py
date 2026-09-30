@@ -235,6 +235,24 @@ EXTRACT_JS = r"""
   const price = flat(document.querySelector('.product-price')?.innerText);
   const shop  = flat(document.querySelector('.top-name-tag')?.innerText);
 
+  // ---- v2.0 新增字段 ----
+  // 累计评价数：优先取价格面板的「累计评价 2万+」
+  //   —— 首屏即可见、结构稳定（2026-09-30 实测 4 款商品全部命中）；
+  //   兜底取详情页评价区的「买家评价(2万+)」（在页面下方，懒加载时可能取不到）。
+  //   输出只留数值部分，如 "2万+"。
+  const ccEl = document.querySelector('.product-price-panel--options-comment')
+            || document.querySelector('#comment-title');
+  const comment = flat(ccEl ? ccEl.innerText : '')
+      .replace(/^累计评价\s*/, '')
+      .replace(/^买家评价\s*[（(]/, '')
+      .replace(/[)）]\s*$/, '')
+      .trim();
+
+  // 营销活动：右侧「已享受 / 可再享」区域。
+  //   实测形如「已享受：单品立减60元 可再享：最高返26京豆」，
+  //   即商品价格下方那块活动说明（含单品立减 / 国补 / 返京豆等）。
+  const promo = flat(document.querySelector('.page-right-discount')?.innerText);
+
   // 4. 主图原图：去掉 /s<W>x<H>_ 尺寸前缀
   const big = firstImg ? firstImg.replace(/\/s\d+x\d+_/, '/') : '';
 
@@ -242,6 +260,8 @@ EXTRACT_JS = r"""
     url: location.href,
     title: title,
     price: price,
+    comment: comment,
+    promo: promo,
     shop: shop,
     firstImg: firstImg || '',
     firstBig: big,
@@ -444,8 +464,10 @@ def _is_risk_url(u: str) -> bool:
 
 
 def _write_csv(path: Path, rows: list[dict]):
-    fields = ["sku", "status", "title", "price", "shop", "img_count",
-              "image_file", "image_url", "page_url", "note", "ts"]
+    # v2.0：在 price 之后插入 comment_count（累计评价数）与 promo（营销活动）
+    fields = ["sku", "status", "title", "price", "comment_count", "promo",
+              "shop", "img_count", "image_file", "image_url", "page_url",
+              "note", "ts"]
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
@@ -814,6 +836,8 @@ def main():
                         log("    [失败] 未取到主图", logfile)
                         rows.append({"sku": sku, "status": "no_image",
                                      "title": v.get("title", ""), "price": v.get("price", ""),
+                                     "comment_count": v.get("comment", ""),
+                                     "promo": v.get("promo", ""),
                                      "shop": v.get("shop", ""), "page_url": cur_url,
                                      "ts": datetime.now().isoformat(timespec="seconds")})
                         fail_streak += 1
@@ -824,11 +848,16 @@ def main():
                         ok = download(img_url, out_path)
                         title = v.get("title", "")
                         price = v.get("price", "")
-                        log(f"    OK  {title[:34]}  {price}  图={'成功' if ok else '下载失败'} ({v.get('imgCount')}张)", logfile)
+                        log(f"    OK  {title[:30]}  价={price}  评价={v.get('comment') or '-'}"
+                            f"  活动={'有' if v.get('promo') else '-'}"
+                            f"  图={'成功' if ok else '下载失败'} ({v.get('imgCount')}张)", logfile)
                         rows.append({
                             "sku": sku,
                             "status": "ok" if ok else "img_download_failed",
-                            "title": title, "price": price, "shop": v.get("shop", ""),
+                            "title": title, "price": price,
+                            "comment_count": v.get("comment", ""),
+                            "promo": v.get("promo", ""),
+                            "shop": v.get("shop", ""),
                             "img_count": v.get("imgCount"),
                             "image_file": out_path.name if ok else "",
                             "image_url": img_url, "page_url": cur_url,
@@ -843,6 +872,8 @@ def main():
                                 "image": out_path.name,
                                 "title": title,
                                 "price": price,
+                                "comment_count": v.get("comment", ""),
+                                "promo": v.get("promo", ""),
                                 "shop": v.get("shop", ""),
                                 "img_count": v.get("imgCount"),
                                 "image_url": img_url,
@@ -899,6 +930,8 @@ def main():
                         "status": src.get("status") or "ok",
                         "title": src.get("title") or v.get("title", ""),
                         "price": src.get("price") or v.get("price", ""),
+                        "comment_count": src.get("comment_count") or v.get("comment_count", ""),
+                        "promo": src.get("promo") or v.get("promo", ""),
                         "shop": src.get("shop") or v.get("shop", ""),
                         "img_count": src.get("img_count") or v.get("img_count", ""),
                         "image_file": src.get("image_file") or v.get("image", ""),
