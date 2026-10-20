@@ -31,6 +31,9 @@ yarn-error.log*
 # jd-sku-image-fetch：模板与技能元数据随仓库发布；真实的 skus.csv / 抓取数据仍被排除
 !jd-sku-image-fetch/skus.example.csv
 !jd-sku-image-fetch/workbuddy.json
+# dewu-hot-track-report：技能元数据与抓取范围模板随仓库发布；抓取产出（*_runs/）仍被排除
+!dewu-hot-track-report/workbuddy.json
+!dewu-hot-track-report/references/groups.example.json
 data/
 output/
 logs/

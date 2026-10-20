@@ -1,0 +1,6 @@
+{
+  "display_name": "得物商机推荐趋势报告",
+  "display_name_en": "Dewu Hot-Track Trend Report",
+  "description_zh": "抓取得物后台「高搜词」全量热点明细，清洗后生成八章市场趋势分析报告与商品案例库。",
+  "description_en": "Scrape Dewu's hot-search trend opportunities by category and generate an eight-section market trend report."
+}

@@ -13,13 +13,21 @@
 
 ## 项目规划
 
-| 项目 | 方向 | 优先级 | 状态 |
-|------|------|--------|------|
-| competitor-new-product-monitor | 竞品监控 | P0 | 已上线 |
-| xhs-hot-note-monitor | 热点监控 | P0 | 已上线 |
-| quick-analysis | 数据分析 | P0 | 规划中 |
-| buyer-show-gen | 内容生成 | P1 | 规划中 |
-| content-scraper | 数据采集 | P2 | 规划中 |
+| 项目 | 方向 | 技术栈 | 优先级 | 状态 |
+|------|------|--------|--------|------|
+| competitor-new-product-monitor | 竞品监控 | Python + bsk | P0 | 已上线 |
+| xhs-hot-note-monitor | 热点监控 | Python + Playwright | P0 | 已上线 |
+| dewu-hot-track-report | 热点分析 | Python + bsk | P0 | 已上线 |
+| jd-sku-image-fetch | 主图采集 | Python + bsk | P0 | 已上线 |
+| image-url-to-excel | 表格提效 | Python + openpyxl | P1 | 已上线 |
+| quick-analysis | 数据分析 | Python + Pandas | P0 | 规划中 |
+| buyer-show-gen | 内容生成 | Python + LLM API | P1 | 规划中 |
+| content-scraper | 数据采集 | Python + Scrapy | P2 | 规划中 |
+
+## 抓取层技术栈
+
+三个抓取类工具共用 bsk（真实登录态浏览器）作为抓取层，技术讲解见
+[bsk-browser-automation.md](./bsk-browser-automation.md)。
 
 ## 面试展示要点
 
