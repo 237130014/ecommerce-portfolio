@@ -21,7 +21,7 @@ $Catalog = @(
     @{
         Name    = 'dewu-hot-track-report'
         Title   = '得物商机推荐趋势报告'
-        Deps    = @('pandas', 'jieba')
+        Deps    = @('pandas', 'jieba', 'pillow')
         RunHint = '跑一次得物商机推荐报告'
     }
 )

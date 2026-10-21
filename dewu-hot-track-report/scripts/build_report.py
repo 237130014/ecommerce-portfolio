@@ -3,10 +3,12 @@
 
     python build_report.py --data-dir runs/2026-10-20/data --week-dir runs/2026年10月第四周-2026-10-20
     python build_report.py --csv <已有CSV> --week-dir <周目录>       # 跳过抓取数据转换
+    python build_report.py --data-dir … --inline                     # 同时出单文件分享版（图片内联）
 
 产出：
     <周目录>/原始数据/得物商机推荐_<date>.csv
     <周目录>/分析报告/得物商机推荐市场趋势分析报告-<周标签>.{md,html}
+    <周目录>/分析报告/得物商机推荐市场趋势分析报告-<周标签>-单文件分享版.html   # 仅 --inline
     <周目录>/分析报告/assets/*.jpg
     <周目录>/过程记录/clean_funnel.json
 """
@@ -115,6 +117,9 @@ def main():
     ap.add_argument("--base", default="./dewu-runs", help="周目录的父目录（默认 ./dewu-runs）")
     ap.add_argument("--capture-date", default="", help="抓取日期 YYYY-MM-DD，默认今天")
     ap.add_argument("--no-images", action="store_true", help="不下载热点图")
+    ap.add_argument("--inline", action="store_true",
+                    help="同时产出「单文件分享版」HTML：本地热点图 + 远程案例图全部压成 data URI 内嵌，"
+                         "单个文件发给别人也能正常显示（需 pillow）")
     args = ap.parse_args()
 
     capture_date = args.capture_date or dt.date.today().strftime("%Y-%m-%d")
@@ -178,9 +183,28 @@ def main():
     assert os.path.getsize(md_path) > 0 and os.path.getsize(html_path) > 0, "报告为空"
     assert funnel["finalCount"] > 0, "最终分析集为空，检查清洗规则与热度阈值"
 
+    # ---- 可选：出「单文件分享版」（图片全部内联，可直接发人）----
+    share_path = ""
+    if args.inline:
+        share_path = os.path.join(
+            out_dir, "%s-%s-单文件分享版.html" % (REPORT_PREFIX, week_label))
+        try:
+            import inline_images as ii
+            print("\n[分享版] 正在把热点图 + 案例图压缩内联…")
+            st = ii.inline_html(html_path, share_path)
+            print("[分享版] %.2f MB，内联 %d 处，失败 %d 张" % (
+                st["outSize"] / 1048576,
+                st["localInlined"] + st["remoteInlined"], len(st["failed"])))
+        except Exception as e:  # noqa: BLE001
+            print("[分享版] 生成失败（主报告不受影响）：%s" % e)
+            print("        可单独补跑：python scripts/inline_images.py \"%s\"" % html_path)
+            share_path = ""
+
     print("\n=== 完成 ===")
     print("MD   :", md_path)
     print("HTML :", html_path)
+    if share_path:
+        print("分享版:", share_path)
     print("分析集 %d 热点 | 相似机会品 %d 条" % (funnel["finalCount"], len(similar)))
 
 

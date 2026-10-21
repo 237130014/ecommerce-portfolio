@@ -25,7 +25,7 @@ agent_created: true
 2. **浏览器已连接**：`bsk browsers` 能看到 Chrome/Edge
 3. **已登录得物后台**，且有一个标签页停在
    `https://stark.dewu.com/main/businessApp/opportunity?tabId=suggestion`
-4. **Python 依赖**：`pandas`、`jieba`
+4. **Python 依赖**：`pandas`、`jieba`（要出单文件分享版再加 `pillow`）
 
 ```bash
 PY="$HOME/.workbuddy/binaries/python/envs/default/Scripts/python.exe"   # Windows 托管版
@@ -85,15 +85,32 @@ DAY=$(date +%F)
 <周目录>/
 ├── 原始数据/得物商机推荐_<date>.csv        # 16 列标准 + 8 列接口原始字段
 ├── 分析报告/…-<周标签>.md / .html          # 八章报告
+├── 分析报告/…-<周标签>-单文件分享版.html   # 仅 --inline，图片全内嵌，可直接外发
 ├── 分析报告/assets/*.jpg                   # 热点长图（已下载本地，不再依赖外链）
 └── 过程记录/clean_funnel.json              # 逐步剔除明细，可追溯
 ```
 
 已有 CSV 只想重出报告：`--csv <路径> --week-dir <周目录>`；不想下图加 `--no-images`。
 
-### 第 4 步 · 交付
+### 第 4 步 · 要发给别人就出「单文件分享版」
 
-用 `present_files` 呈现 **HTML 报告 → MD 报告 → CSV**，并口头汇报三件事：
+普通 HTML 是**不自包含**的：热点图是 `assets/*.jpg` 相对路径、相似机会品图是 `cdn.poizon.com` 外链，
+单独把 HTML 发给别人，图片会全变成「加载失败」的灰块。加 `--inline` 就能一次产出可分享版本：
+
+```bash
+"$PY" "$SK/scripts/build_report.py" --data-dir "./dewu-runs/$DAY/data" --base "./dewu-runs" --inline
+# 或对已生成的报告补跑
+"$PY" "$SK/scripts/inline_images.py" "<周目录>/分析报告/…-<周标签>.html"
+```
+
+做的是：本地热点长图缩到 1400px、远程案例图缩到 360px，统一转 JPEG 后 base64 内联，
+输出 `<…>-单文件分享版.html`（约 2~3 MB，137 张图全在文件里）。微信 / 邮件 / 钉钉直接发，对方不联网也能看全。
+
+> 依赖 `pillow`。**默认不开** `--inline`：日常自己看不必背 2.5 MB 的体积，只在要外发时加。
+
+### 第 5 步 · 交付
+
+用 `present_files` 呈现 **HTML 报告 → MD 报告 → CSV**（要外发再加分享版 HTML），并口头汇报三件事：
 
 1. 抓了多少组/页/条，每组命中多少（要如实说「不足 10 页」是因为数据本身只有这些）
 2. 清洗漏斗：原始 → 类目白名单 → 国际大牌 → 热度阈值，每一档掉了多少
@@ -120,6 +137,7 @@ DAY=$(date +%F)
 | `scripts/analysis.py` | 清洗漏斗、统计、`parse_heat` 等口径函数 |
 | `scripts/domain_dict.py` | 类目白名单 + 国际大牌别名 |
 | `scripts/render_report.py` | 八章 MD/HTML 渲染 |
+| `scripts/inline_images.py` | 出单文件分享版：本地图 + 远程案例图压缩后 base64 内联（需 pillow） |
 
 ## 坑位速查（详见 `references/page-flow.md`）
 
@@ -140,4 +158,5 @@ DAY=$(date +%F)
 - [ ] 八个 `<h2>` 章节齐全，且「四、元素/风格/材质」「五、场景/人群」若数据薄，
       已在「八、风险提示与数据口径」里写明是平台缺字段
 - [ ] `assets/` 图片数与分析集条数接近（下载失败会打印出来）
+- [ ] 要外发时检查分享版：`data:image/jpeg;base64` 数量 ≈ 热点图×2 + 相似品数，且文件里不再有 `assets/` 或 `cdn.poizon.com` 的 `src` 残留
 - [ ] `过程记录/clean_funnel.json` 的 `finalCount` 与 MD 报告里的数字一致

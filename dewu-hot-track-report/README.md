@@ -60,12 +60,14 @@ dewu-hot-track-report/
     ├── build_report.py           # 编排：CSV → 清洗 → 下图 → MD/HTML + 漏斗记录
     ├── analysis.py               # 清洗漏斗、统计口径、parse_heat
     ├── domain_dict.py            # 50 条类目白名单 + 30 个国际大牌别名
-    └── render_report.py          # 八章 MD / HTML 渲染
+    ├── render_report.py          # 八章 MD / HTML 渲染
+    └── inline_images.py          # 单文件分享版：图片压缩 + base64 内联
 ```
 
 ## 安装
 
-前置：bsk CLI 可用、浏览器已连接、**已登录得物后台**、Python 装了 `pandas` + `jieba`。
+前置：bsk CLI 可用、浏览器已连接、**已登录得物后台**、Python 装了 `pandas` + `jieba`
+（要把报告外发，再加 `pillow`）。
 
 在仓库根目录执行（会自动装依赖并落盘到 `~/.workbuddy/skills/`）：
 
@@ -113,6 +115,34 @@ PY="$HOME/.workbuddy/binaries/python/envs/default/Scripts/python.exe"
 
 热度分布极度右偏，阈值过滤通常会砍掉 80%+，只剩十几条 —— **这是预期行为**，
 不要为了报告好看把阈值调松。
+
+## 要把报告发给别人？加一个 `--inline`
+
+报告里的图片有两处坑，直接发 HTML 会一片灰块：
+
+| 图片 | 原地址 | 单独发 HTML 的后果 |
+|---|---|---|
+| 17 张热点长图 | `assets/hotspot_xxx.jpg`（本地相对路径） | 文件没跟着走 → 404 |
+| 120 张相似机会品图 | `https://cdn.poizon.com/…`（远程外链） | 对方网络 / 防盗链 / 图片过期 → 加载不出来 |
+
+加 `--inline` 会另出一份**单文件分享版**：本地长图缩到 1400px、远程缩略图缩到 360px，
+统一转 JPEG 后 base64 内联，137 张图全塞进一个文件里，体积约 2.5 MB。
+微信、邮件、钉钉直接发，对方不联网也能看全。
+
+```bash
+# 出报告时一起出
+"$PY" ~/.workbuddy/skills/dewu-hot-track-report/scripts/build_report.py \
+      --data-dir "./dewu-runs/$(date +%F)/data" --base "./dewu-runs" --inline
+
+# 已生成的报告补跑
+"$PY" ~/.workbuddy/skills/dewu-hot-track-report/scripts/inline_images.py \
+      "分析报告/得物商机推荐市场趋势分析报告-<周标签>.html"
+```
+
+需要 `pillow`（`pip install pillow`）。**默认不开**：日常自己看不必背 2.5 MB 的体积。
+
+> 还有一种情况是图片本来就抓不到（得物 CDN 拒绝、热点本身没图）—— 那部分是数据缺口，
+> 内联解决不了，报告里会显示「热点图加载失败」的说明块。
 
 ## 三个关键坑（完整版见 references/page-flow.md）
 
